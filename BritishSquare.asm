@@ -449,93 +449,142 @@ print_int:
 	jr	$ra 
 
 
+#################################################
+# print_board                                   #
+# 	Description: Function that prints the       #
+#   	current state of the board by looping   #
+#       through all the cell values.            #
+#   Board Values:                               #
+# 		board[index] == 0    O-Stone            #
+#		board[index] == 1    X-Stone            #
+#		board[index] == 2	 Empty Cell         #
+#	Parameters: None                            #
+# 	Return: None                                #
+# 	Registers:                                  #
+# 		$t0	- Pointer to board                  #
+# 		$t1 - Row Num                           #
+# 		$t2 - Temp variable used EOL checking   #
+# 		$t3 - Cell Num                          #
+# 		$t4 - Temp variable                     #
+# 		$t5 - Temp variable                     #
+# 		$t6 - Temp variable for getting index   #
+#################################################
 print_board:
 	addi $sp, $sp, -4 			# Making room to save return addr
 	sw 	$ra, 0($sp)				# Storing return location
-	move $t1, $a0				# Pointer to Array
-	
+	la $t0, board				# Pointer to Array
+
+# print_board_header: Prints the board header and init row number
+print_board_header:
 	la 	$a0, NewLine
-	jal print_string
+	jal print_string 			# Printing board header
 	la 	$a0, Border
 	jal print_string
-	la 	$a0, CellSeparator
+	la 	$a0, CellSeparator 		# Printing CellSeparator
 	jal print_string
 
-	li 	$t0, 0					# Row Num
+	addi $t0, $zero, 0			# Row Num
 
-print_loop:
-	li 	$t2, 10
-	beq $t0, $t2, print_done
-	li 	$t3, 0 					# Cell Num 
+# print_board_loop: Iterates by row in the board until i = 10 (5 rows * 2)
+print_board_loop:
+	addi $t2, $zero, 10         # Check if loop is done (Row Num = 10)
+	beq $t1, $t2, print_board_done  
+	
 	la 	$a0, Star
-	jal print_string
+	jal print_string 			# Printing row prefix 
 
+	addi $t3, $zero, 0 			# Init Cell Num
+
+# print_row_loop: Iterates by cell in the respective row until y = 5
 print_row_loop:
-	li 	$t2, 5
-	beq $t3, $t2, print_row_done
-	lw 	$a0, 0($t1)
-	li 	$t2, 2
-	rem $t4, $t0, $t2
+	addi $t2, $zero, 5 
+	beq $t3, $t2, print_row_done 	# Checking if loop is done (cell = 5)
+
+	lw 	$t6, 0($t0) 				# Getting board[index]
+
+	addi $t2, $zero, 2 				# Determining if row is top or bottom of cells
+	rem $t4, $t0, $t2 				# Remainder == 0 (top) 1 (bottom)
 	beq $t4, $zero, print_top_cell
-	j 	print_bottom_cell
 
-print_top_cell:
-	beq $a0, $zero, print_o_cell
-	li 	$t2, 1
-	beq $a0, $t2, print_x_cell
-	la 	$a0, EmptyCell
-	jal print_string
-	j 	update_row_loop
-
+# print_bottom_cell: Prints the bottom portion of the cell
 print_bottom_cell:
-	beq $a0, $zero, print_o_cell
-	li 	$t2, 1
-	beq $a0, $t2, print_x_cell
-	li 	$t2, -1
-	li 	$t4, 2
-	addi $t2, $t2, $t0
-	div $t5, $t2, $t4
-	addi $t5, $t5, $t3
-	la 	$a0, $t5
-	jal print_int
-	li 	$t2, 10
-	slt $t4, $t5, $t2
+	beq $t6, $zero, print_o_cell    # board[index] == 0    O-Stone
+	addi $t2, $zero, 1
+	beq $t6, $t2, print_x_cell      # board[index] == 1    X-Stone
+	addi $t2, $zero, -1             # Getting index number = (rowNum - 1)/2 + y
+	addi $t4, $zero, 2              # 
+	addi $t2, $t2, $t1              # $t2 = (rowNum - 1)
+	div $t5, $t2, $t4               # $t5 = $t2 / 2
+	addi $t5, $t5, $t3              # $t5 = $t5 + y
+	addi $a0, $zero, $t5            # Passing index number to print
+	jal print_int                   # Printing index number
+	addi $t2, $zero, 10             # Determing to print one or two white spaces
+	slt $t4, $t5, $t2               # if index number < 10 (print two) else (print one)
 	beq $t4, $zero, print_one_space
 	la  $a0, DoubleWhiteSpace
 	jal print_string
 	j 	update_row_loop
 
+# print_top_cell: Prints the top of the respective cell
+print_top_cell:
+	beq $t6, $zero, print_o_cell   # board[index] == 0 --> print_o_cell
+	addi $t2, $zero, 1
+	beq $t6, $t2, print_x_cell     
+	la 	$a0, EmptyCell
+	jal print_string
+	j 	update_row_loop
+
+# print_o_cell: Prints the O Cell
 print_o_cell:
 	la  $a0, OCell
 	jal print_string
 	j 	update_row_loop
 
+# print_x_cell: Prints the X Cell
 print_x_cell:
 	la  $a0, XCell
 	jal print_string
 	j 	update_row_loop
 
+# print_one_space: Prints the one white space
 print_one_space:
 	la  $a0, SingleWhiteSpace
 	jal print_string
-	j 	update_row_loop
 
+# update_row_loop: Increments cell number and pointer and continues loop
 update_row_loop:
-	addi $t3, $t3, 1
-	addi $t1, $t1, 4
-	j 	print_row_loop
+	addi $t3, $t3, 1            # Incrementing cell number
+	addi $t0, $t0, 4            # Moving board pointer to next index
+	j 	print_row_loop          # Continuing loop
 
+# print_row_done: Prints row end & determines if last row was top or bottom
 print_row_done:
-	la 	$a0, CellSeparator
+	la 	$a0, CellRowEnd         # Printing row end
 	jal print_string
-	addi $t0, $t0, 1
-	j 	print_loop
+	addi $t2, $zero, 2          # Determing if printed row was top or bottom
+	rem $t4, $t1, $t2
+	beq $t4, $zero, print_top_row_done
 
-print_done:
-	la $a0, Border
+# print_bottom_row_done: Prints a row separator and continues loop 
+print_bottom_row_done:
+	la 	$a0, CellSeparator      # Printing row separator
+	jal print_string
+	addi $t1, $t1, 1            # Incrementing row number
+	j 	print_board_loop        # Continuing loop
+
+# print_bottom_row_done: Moves pointer back to start of row and continues loop
+print_top_row_done:
+	addi $t2, $zero, -5         # Moving pointer back to start of row
+	add $t0, $t0, $t2
+	addi $t0, $t1, 1            # Incrementing row number
+	j 	print_board_loop        # Continuing loop
+
+# print_board_done: Finishes printing board and returns to return addr
+print_board_done:
+	la $a0, Border              # Printing footer
 	jal print_string
 
 	lw 	$ra, 0($sp)				# Restoring return addr
 	addi $sp, $sp, 4 			# Deallocating space
-	jr 	$ra
+	jr 	$ra                     # returning
 
