@@ -21,7 +21,7 @@
 PRINT_INT    = 1
 PRINT_STRING = 4
 READ_INT     = 5
-EXIT.        = 10
+EXIT         = 10
 
 
 #
@@ -46,37 +46,37 @@ WelcomeMessage:
 
 # In Game Messages
 OSkipMessage:
-	.asciiz "Player O has no legal moves, turn skipped.\n\n"
+	.asciiz "\nPlayer O has no legal moves, turn skipped.\n\n"
 XSkipMessage:
-	.asciiz "Player X has no legal moves, turn skipped.\n\n"
+	.asciiz "\nPlayer X has no legal moves, turn skipped.\n\n"
 
 OMoveMessage:
-	.asciiz "Player O enter a move (-2 to quit, -1 to skip move): "
+	.asciiz "\nPlayer O enter a move (-2 to quit, -1 to skip move): "
 XMoveMessage:
-	.asciiz "Player X enter a move (-2 to quit, -1 to skip move): "
+	.asciiz "\nPlayer X enter a move (-2 to quit, -1 to skip move): "
 
 # Error Messages
 CenterSquareError:
-	.asciiz "Illegal move, can't place first stone of game in middle square\n\n"
+	.asciiz "\nIllegal move, can't place first stone of game in middle square\n\n"
 IllegalMoveLocationError:
-	.asciiz "Illegal location, try again\n\n"
+	.asciiz "\nIllegal location, try again\n\n"
 IllegalOccupiedLocationError:
-	.asciiz "Illegal move, square is occupied\n\n"
+	.asciiz "\nIllegal move, square is occupied\n\n"
 IllegalBlockedLocationError:
-	.asciiz "Illegal move, square is blocked\n\n"
+	.asciiz "\nIllegal move, square is blocked\n\n"
 
 # End Game Messages
 GameTotals:
-	.asciiz "Game Totals\n"
+	.asciiz "\nGame Totals\n"
 XTotal:
 	.asciiz "X's total="
 OTotal:
 	.asciiz " O's total="
 
 XQuitMessage:
-	.asciiz "Player X quit the game.\n"
+	.asciiz "\nPlayer X quit the game.\n"
 OQuitMessage:
-	.asciiz "Player O quit the game.\n"
+	.asciiz "\nPlayer O quit the game.\n"
 
 TieMessage:
 	.ascii  "************************\n"
@@ -114,7 +114,7 @@ Board:
 	.space 100
 
 
-##### CODE STARTS HERE #####
+##### Functions #####
 
 	.text
 	.align 	2
@@ -126,10 +126,312 @@ Board:
 #
 #
 main:
-	addi $sp, $sp, -12
-	la $a0, WelcomeMessage		# Printing Welcome Message
+	addi $sp, $sp, -4
+	sw 	$ra, 0($sp)
+
+	la  $a0, WelcomeMessage		# Printing Welcome Message
 	jal print_string
 	jal print_board
+
+	la  $s0, Board
+	# Values for init_board
+	addi $t0, $zero, 0          # i = 0
+	addi $t1, $zero, 25			# len(board)
+	addi $t2, $zero, 2 			# Value for Empty Cell
+
+
+init_board:
+	beq $t0, t1, run 
+	sw  $t2, 0($s0)
+	addi $s0, $s0, 4
+	addi $t0, $t0, 1
+	j 	init_board
+
+run:
+	addi $sp, $sp, -4
+	sw  $ra, 0($sp)
+	# Might have to make room in sp for s vars
+	addi $s1, $zero, 1 			# Start with player X
+
+game_loop:
+	add $a0, $zero, $s1 		# Passing player
+	jal check_availability
+	beq $v0, $zero, skip_player
+	j 	game_move
+
+skip_player:
+	beq $s1, $zero, skip_o_player
+
+skip_x_player:
+	la 	XSkipMessage
+	jal print_string
+	j 	game_loop_end
+
+skip_o_player:
+	la 	OSkipMessage
+	jal print_string
+	j 	game_loop_end
+
+game_move:
+	beq $s1, $zero, prompt_o:
+
+prompt_x:
+	la 	$a0, XMoveMessage
+	jal print_string
+	j 	check_valid_move
+
+prompt_o:
+	la 	$a0, OMoveMessage
+	jal print_string
+
+check_valid_move:
+	li $v0, READ_INT
+	syscall
+	add $s2, $zero, $v0
+
+is_move_quit:
+	addi $t0, $zero, -2
+	beq $s2, $t0, quit
+
+is_move_skip:
+	addi $t0, $zero, -1
+	beq $t2, $t0, game_move_done
+
+is_move_invalid:
+	slt $t0, $s2, $zero
+	bne $t0, $zero, invalid_move_location
+	addi $t1, $zero, 24
+	slt $t0, $t1, $t2
+	bne $t0, $zero, invalid_move_location
+
+is_center_error:
+	addi $t0, $zero, 12
+	bne $s2, $t0, is_cell_available
+	addi $v0, $zero, 0
+	jal check_centter_error
+	bne $v0, $zero, center_error
+
+is_cell_available:
+	add $a0, $zero, $s1
+	add $a1, $zero, $s2
+	jal check_cell_availability
+
+is_cell_occupied:
+	addi $t0, $zero, 2
+	beq $v0, $t0, invalid_occupied_loaction
+
+is_cell_blocked:
+	addi $t0, $zero, 3
+	beq $v0, $t0, invalid_blocked_loaction
+
+write_cell:
+	la 	$t0, board
+	addi $t1, $zero, 4
+	mul $t2, $s2, $t1
+	addi $t0, $t0, $t2
+	sw 	$s1, 0($t0)
+	j 	game_move_done
+
+invalid_move_location:
+	la 	$a0, IllegalMoveLocationError
+	jal print_string
+	j 	re_prompt
+
+center_error:
+	la $a0, CenterSquareError
+	jal print_string
+	j re_prompt
+
+invalid_occupied_location:
+	la 	$a0, IllegalOccupiedLocationError
+	jal print_string
+	j re_prompt
+
+invalid_blocked_loaction:
+	la 	$a0, IllegalBlockedLocationError
+	jal print_string
+
+re_prompt:
+	beq $s1, $zero, prompt_o
+	j 	prompt_x
+
+game_move_done:
+	jal print_string
+
+game_loop_end:
+	addi $a0, $zero, 0
+	jal check_availability
+	addi $t0, $t0, $v0
+	addi $a0, $zero, 1
+	jal check_availability
+	addi $t0, $t0, $v0
+	beq $t0, $zero, end_game
+	addi $t0, $zero, 1
+	xor $s1, $s1, $t0
+	j 	game_loop
+
+quit:
+	jal print_score
+	beq $s1, $zero, print_o_quit 
+
+print_x_quit:
+	la 	XQuitMessage
+	jal print_string
+	j 	exit_game
+
+print_o_quit:
+	la 	OQuitMessage
+	jal print_string
+	j 	exit_game
+
+end_game:
+	jal print_score
+	beq $v0, $zero, 1
+	addi, $t0, $zero, 1
+	beq $v0, $zero, o_wins
+
+tie: 
+	la $a0, TieMessage
+	jal print_string
+	j 	exit_game
+
+o_wins:
+	la 	$a0, OWinsMessage
+	jal print_string
+	j 	exit_game
+
+x_wins:
+	la 	$a0, XWinsMessage
+	jal print_string
+
+exit_game:
+	la 	$a0, EXIT
+	syscall 
+
+
+#############################
+# check_centter_error       #
+#############################
+check_centter_error:
+	la 	$t0, board
+	addi $t6, $zero, 0
+
+check_center_error_loop:
+	lw 	$t5, 0($t0)
+	bne $t5, $zero, center_loop_done
+	addi $t6, $t6, 1
+	addi $t1, $zero, 25
+	beq $t6, $t1, center_loop_done_error
+	j 	check_center_error_loop
+
+check_loop_done_error:
+	addi $v0, $zero, 1
+	jr 	$ra
+
+check_loop_done:
+	addi $v0, $zero, 0
+	jr 	$ra 
+
+
+
+###############################
+# check_availability          #
+###############################
+check_availability:
+	addi $sp, $sp, -4
+	sw 	$ra, 0($sp)
+	addi $t1, $zero, 0 			# index = 0
+
+check_availability_loop:
+	addi $t3, $zero, 25
+	beq $t1, $t3, check_no_availability
+
+	addi $a1, $t1, $zero 		# passing index
+	jal check_cell_availability
+	beq $v0, $zero, is_availability
+	addi $t1, $t1, 1
+	j 	check_availability_loop
+
+check_cell_availability:
+	la 	$t0, board 
+	add $t0, $t0, $a1
+	lw 	$t4, 0($t0)
+	addi $t5, $zero, 1
+	xor $t6, $a0, $t5
+	beq $t4, $a0, cell_occupied 
+	beq $t4, $t6, cell_occupied
+
+check_north_availability:
+	addi $s4, $zero, 5 			# North index offset
+	slt $s5, $a1, $s4
+	bne $s5, $zero, check_south_availability
+	addi $s4, $zero, -5
+	add $t0, $t0, $s4
+	lw 	$t4, 0($t0)
+	beq $t4, $a0, check_west_availability
+	beq $t4, $t6, cell_blocked 
+	addi $s4, $zero, 5
+	add $t0, $t0, $s4
+
+check_south_availability:
+	addi $s4, $zero, 20
+	slt $s5, $a1, $s4
+	beq $s5, $zero, check_west_availability
+	addi $s4, $zero, 5
+	add $t0, $t0, $s4
+	lw 	$t4, 0($t0)
+	beq $t4, $a0, check_west_availability
+	beq $t4, $t6, cell_blocked
+	addi $s4, $zero, -5
+	add $t0, $t0, $s4
+
+
+check_west_availability:
+	addi $s4, $zero, 5
+	rem $s5, $a1, $s4
+	beq $s5, $zero, check_east_availability
+	addi $s4, $zero, -1
+	add $t0, $t0, $s4
+	lw 	$t4, 0($t0)
+	beq $t4, $a0, check_east_availability
+	beq $t4, $t6, cell_blocked
+	addi $s4, $zero, 1
+	add $t0, $t0, $s4
+
+check_east_availability:
+	addi $s4, $a1, 1
+	addi $t5, $zero, 5
+	rem $s5, $s4, $t5
+	beq $s5, $zero, check_done
+	addi $s4, $zero, 1
+	add $t0, $t0, $s4
+	lw 	$t4, 0($t0)
+
+cell_occupied:
+	addi $v0, $zero, 2
+	jr 	$ra
+
+cell_blocked:
+	addi $v0, $zero, 3
+	jr 	$ra
+
+cell_done:
+	addi $v0, $zero, 0
+	jr 	$ra
+
+no_availability:
+	addi $v0, $zero, 0
+	lw 	$ra, 0($sp)
+	addi $sp, $sp, 4
+	jr 	$ra
+
+is_availability:
+	addi $v0, $zero, 1
+	lw 	$ra, 0($sp)
+	addi $sp, $sp, 4
+	jr 	$ra
+
+
 
 
 # print_string: Prints the string passed to it
@@ -234,12 +536,6 @@ print_done:
 	jal print_string
 
 	lw 	$ra, 0($sp)				# Restoring return addr
-	addi $sp, $sp, 4
+	addi $sp, $sp, 4 			# Deallocating space
 	jr 	$ra
-
-
-
-
-
-
 
